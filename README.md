@@ -11,6 +11,9 @@ En aquest treball s'han escollit les dades de la província de Lleida per a:
 
 # Descripció fitxers
 El fitxer "PC_lleida.cav" conté les dades de les espècies arbories per a la província de Lleida.
+
 El fitxer "codi_especies.csv" conté la correspondència entre els codis i l'espècie arbòrea.
-L'estudi realitzat i el codi emprat està en el fitxer "ifn3.csv"
+
+L'estudi realitzat i el codi emprat està en el fitxer "ifn3.csv".
+
 L'html resultant és el "ifn3.html"
