@@ -8,3 +8,9 @@ En aquest treball s'han escollit les dades de la província de Lleida per a:
 3. Aplica de nou el model anterior, però utilitzant una **mètrica diferent** i comparar els resultats.  
 4. Aplicar un **model supervisat** sobre el joc de dades **sense** haver aplicat prèviament **PCA/SVD**.  
 5. Aplicar un **model supervisat** sobre el joc de dades havent aplicat prèviament **PCA/SVD** i comparar-lo amb els resultats previs
+
+# Descripció fitxers
+El fitxer "PC_lleida.cav" conté les dades de les espècies arbories per a la província de Lleida.
+El fitxer "codi_especies.csv" conté la correspondència entre els codis i l'espècie arbòrea.
+L'estudi realitzat i el codi emprat està en el fitxer "ifn3.csv"
+L'html resultant és el "ifn3.html"
