@@ -5,6 +5,6 @@ https://www.miteco.gob.es/es/biodiversidad/servicios/banco-datos-naturaleza/info
 En aquest treball s'han escollit les dades de la provincia de lleida per a:
 1. Aplicar un model de generació de regles a partir de **Regles d'associació**.  
 2. Aplicar un model **no supervisat** i basat en el concepte de **distància**, sobre el joc de dades.  
-3. Aplica de nou el model anterior, però utilitzant una **mètrica diferent** i compara els resultats.  
+3. Aplica de nou el model anterior, però utilitzant una **mètrica diferent** i comparar els resultats.  
 4. Aplicar un **model supervisat** sobre el joc de dades **sense** haver aplicat prèviament **PCA/SVD**.  
 5. Aplicar un **model supervisat** sobre el joc de dades havent aplicat prèviament **PCA/SVD** i comparar-lo amb els resultats previs
