@@ -1,0 +1,683 @@
+---
+title: "Inventari Forestal Nacional 3: Lleida. Analisi i modelat"
+author: "Autor: Xavier Pascuet"
+date: "Gener 2021"
+output:
+  html_document:
+    highlight: default
+    number_sections: yes
+    theme: cosmo
+    toc: yes
+    toc_depth: 2
+  word_document: default
+  pdf_document:
+    highlight: zenburn
+    toc: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+******
+
+# Anàlisis exploratòria de dades
+```{r message= FALSE, warning=FALSE}
+# Importo les llibreries necessàries
+library(arules)
+library(ggplot2)
+library(cluster)
+library(factoextra)
+library(dplyr)
+library(caret)
+# Importo el dataset
+treeData <- read.csv("PC_lleida.csv")
+```
+
+```{r message= FALSE, warning=FALSE}
+# Estructura del dataset
+str(treeData)
+```
+El fitxer consta de 70216 observacions i 19 variables,
+la majoria de tipus númeric, encara que algunes d'aquestes són codificacions categòriques.
+```{r message= FALSE, warning=FALSE}
+# Visualitzo les estadístiques bàsiques
+summary(treeData)
+```
+El dataset consta de les següents variables:
+
+* **Estadillo:** Tipus Enter. Identificador de la parcel·la.
+* **Cla:** tipus String. Codi que determina si la parcel·la ja estava a l'IFN2, o si s'inventaria per primera vegada.
+* **Subclasse:** Tipus String. Codi que determina el tipus de parcel·la
+* **nArbol:** Tipus enter. Número de l'arbre dins de la parcel·la
+* **OrdenIf3:** Tipus enter. Número d'ordre de l'arbre en l'IFN3.
+* **OrdenIf2:** Tipus enter. Número d'ordre de l'arbre en l'IFN2.
+* **Rumbo:** Tipus enter. Angle que formen la direcció nord i la linea que uneix arbre i centre de la parcel·la. En sentit de les agulles del rellotge.
+* **Distanci:** Tipus numèric. Distància en metres al centre de la parcel·la.
+* **Especie:** Tipus Enter. Codi de l'espècie arbòria. Dins de Lleida pren els següents valors:
+  + 4: Rhamnus alaternus 
+  + 8: Phillyrea latifolia 
+  + 12: Malus sylvestris 
+  + 13: Celtis australis
+  + 14: Taxus baccata 
+  + 15: Crataegus
+  + 16: Pyrus spp. 
+  + 21: Pinus sylvestris
+  + 22: Pinus uncinata 
+  + 23: Pinus pinea 
+  + 24: Pinus halepensis
+  + 25: Pinus nigra 
+  + 26: Pinus pinaster 
+  + 31: Abies alba 
+  + 33: Picea abies 
+  + 36: Cupressus sempervirens 
+  + 37: Juniperus communis 
+  + 38: Juniperus thurifera 
+  + 39: Juniperus phoenicea 
+  + 41: Quercus robur
+  + 42: Quercus petraea 
+  + 43: Quercus pyrenaica 
+  + 44: Quercus faginea 
+  + 45: Quercus ilex 
+  + 51: Populus alba
+  + 52: Populus tremula
+  + 54: Alnus glutinosa
+  + 55: Fraxinus angustifolia 
+  + 56: Ulmus minor 
+  + 57: Salix spp.
+  + 58: Populus nigra
+  + 65: Ilex aquifolium
+  + 66: Olea europaea
+  + 68: Arbutus unedo
+  + 71: Fagus sylvatica 
+  + 72: Castanea sativa
+  + 73: Betula spp. 
+  + 74: Corylus avellana 
+  + 75: Juglans regia
+  + 76: Acer campestre
+  + 77: Tilia spp.
+  + 78: Sorbus spp.
+  + 91: Buxus sempervirens 
+  + 92: Robinia pseudacacia
+  + 93: Pistacia terebinthus 
+  + 95: Prunus spp. 
+  + 97: Sambucus nigra
+  + 99: Otras frondosas
+  + 215: Crataegus monogyna
+  + 235: Larix decidua
+  + 236: Cupressus arizonica
+  + 237: Juniperus oxycedrus
+  + 243: Quercus pubescens
+  + 255: Fraxinus excelsior
+  + 256: Ulmus glabra
+  + 257: Salix alba
+  + 258: Populus x canadensis
+  + 273: Betula alba
+  + 275: Juglans nigra
+  + 276: Acer monspessulanum
+  + 277: Tilia cordata
+  + 278: Sorbus aria
+  + 295: Prunus spinosa
+  + 297: Sambucus racemosa
+  + 299: Ficus carica 
+  + 356: Ulmus pumila
+  + 357: Salix atrocinerea
+  + 373: Betula pendula
+  + 377: Tilia platyphyllos
+  + 378: Sorbus aucuparia
+  + 395: Prunus avium
+  + 476: Acer opalus
+  + 576: Acer pseudoplatanus
+  + 657: Salix caprea
+  + 676: Acer platanoides
+  + 757: Salix elaeagnos
+* **Dn1:** Diàmetre normal del arbre apuntaant al centre de la parcel·la, en milímetres.
+* **Dn2:** Diàmetre normal del arbre en driecció perpendicular a l'anterior, en milímetres.
+* **Hf:** Tipus numèric, alçaça total de l'arbre en metres.
+* **Calidad:** Tipus enter. Codifica la qualitat de l'arbre. Pot ser:
+  + 1: Arbre sa, vigorós òptimament conformat ambg excelents perspectives de futur, capaç de proporcionar productes valuosos.
+  + 2: Arbre sa, vigorós, no dominat amb algun defecte de conformació, capaç de proporcionar productes valuosos.
+  + 3: Arbre no ttotalment sa i vigoros, vell o dominat pero capaç de proporcionar productes valuosos
+  + 4: Arbre malalt i dèbil o vell, amb molts defectes de conformació, capaç de proporcionar productes de valor secundari
+  + 5: Arbre molt malat, dèbil o vell, amb pèssima corformació y aprofitaments d'escas valor.
+  + 6: Arbre mort pero sense podrir.
+* **Forma:** Tipus enter. Codificac la forma de l'arbre.
+  + 1: Arbres fusiformes en quasi la totalitat del troncm troncs fustaners de més de 6mm i diàmetre normal major de 20 cm.
+  + 2: Arbres fusiformes, amb troncs fustaners de 4 metres o més, que no petanyen a la forma 1
+  + 3: Arbres fusiformes petits, en els que el diàmetre de 75mm queda per sota els 4 metres d'alçada.
+  + 4: Arbres amb el tronc ramificat abans dels 4 metres d'alçada.
+  + 5: Arbres amb el tronc principal tortuos, sanyat o amb moltes rames.
+  + 6: Arbres escapçats.
+* **ParEsp:** Tipu ester. Parametres especials. Codifica la qualitat de suros o resines.
+* **Agente:** Tipus enter. Codifica l'agent causant del dany. Pot ser:
+  + 100: Sense danys
+  + 200: Cause desconegudes
+  + 310: Fongs
+  + 311: Insectes
+  + 312: Vesc
+  + 313: Plantes epífites
+  + 314: Fauna silvestre
+  + 315: Bestiar
+  + 320: Maquinària
+  + 321: Treta de fusta
+  + 322: Home en general
+  + 410: Neu
+  + 411: Vent
+  + 412: Sequera
+  + 413: LLamp
+  + 414: Gelades
+  + 415: Calamarsa
+  + 421: Foc
+  + 422: Despreniments
+  + 423: Erosió
+* **Import:** Tipus enter. Codifica la importància del dany. Pot ser:
+  + 1: Petita
+  + 2: Mitjana
+  + 3: Gran
+* **Elemento:** Tipus Enter. Codi referent a l'element danyat. Pot ser:
+  + 1: Escorça
+  + 2: Fulles
+  + 3: Rames
+  + 4: Tronc
+  + 5: Fruits
+  + 6: Flors
+  + 7: Guía terminal
+  + 8: Copa
+  + 9: Arbre sencer
+* **Compara:** Tipus String, codi d'ús intern.
+
+#.- Preparació de dades
+```{r message= FALSE, warning=FALSE}
+#Visualitzo valors nulls
+colSums(is.na(treeData))
+```
+Tinc molts valors nulls, dentre els que hem criden espècialment l'atenció els d'espècie i qualitat, exploro amb més detall.
+```{r message= FALSE, warning=FALSE}
+# Visualitza un resum de les dades amb nulls a èspecie i qualitat
+summary(treeData[is.na(treeData$Especie),])
+```
+S'observa que els que tenen espècie i qualitat null són arbres que es van inventariar en l'IFN2 i no s'han pogut inventariar el l'IFN3 (tenen Orden If3, diametres i alçada = 0).
+Com que vull centrar-me només amb dades de l'IFN3 i no m'interesa comparara dades amb l'IFN2, descarto aquests valors.
+```{r message= FALSE, warning=FALSE}
+# Elimino files amb espècie i qualitat nulls
+treeData <- treeData[!is.na(treeData$Especie),]
+```
+Comprovo si queden valors de diametre= 0.
+```{r message= FALSE, warning=FALSE}
+colSums(treeData==0)
+```
+Es comprova que ja no queden valors de diàmatre = 0. Si que n'hi han d'alçada ja que hi han arbres tombats i morts. 
+
+Ara torno a mirar quins valors nulls hem queden. 
+```{r message= FALSE, warning=FALSE}
+# Visualitzo valors nulls
+colSums(is.na(treeData))
+```
+Els valors de forma nulls corresponen a arbres tombats, per tal de facilitar la posterior aplicació de mètodes els codificare com a forma 7, seguint l'ordre establert.
+Hi han valors d'Agent, import i element nulls que corresponen a arbres que no presenten danys, els qualificare com a agent=100, import=0 i element=0, d'acord als les codificacions existents.
+```{r message= FALSE, warning=FALSE}
+# Codifico els nulls de forma
+treeData$Forma[is.na(treeData$Forma)] <- 7
+# Codifico els nulls d'agent
+treeData$Agente[is.na(treeData$Agente)] <- 100
+# Codifico els nulls d'Import
+treeData$Import[is.na(treeData$Import)] <- 0
+# Codifico els nulls d'element
+treeData$Elemento[is.na(treeData$Elemento)] <- 0
+# Comprovo que no quedin nulls en els camps d'interes
+colSums(is.na(treeData))
+```
+Dn1 i Dn2 són les mesures de diàmetre perpendiculars entre elles, per tal de facilitar l'analisis creo una variable Dn que sigui la mitjana de les 2.
+```{r message= FALSE, warning=FALSE}
+# Creo variable Dn
+treeData$Dn <- (treeData$Dn1 + treeData$Dn2) / 2
+```
+
+```{r message= FALSE, warning=FALSE}
+# Importo el fitxer que conté la relació codi-nom de l'especie 
+codi_nom <- read.csv("codi_especies.csv", sep=";")
+
+# Uneixo per obtenir els noms d'especies
+treeData <- merge(treeData, codi_nom, by.x = "Especie", by.y = "Codi")
+```
+Finalment selecciono només les columnes d'interes
+```{r message= FALSE, warning=FALSE}
+treeData <- subset(treeData, select = c(Estadillo, nom_especie, Dn, Ht, Calidad, Forma))
+```
+
+# Model de generació de regles d'associació
+Un cop tinc les dades netes i amb les transformacions necesàries creo un objecte de tipus transaction, on cada transacció tindrà agrupades totes les èspecies arbòries (“especie”) que han sigut trobades en una mateixa parcel·la d'inventari ("estadillo"). En aquest cas hem convé eliminar duplicats, ja que busco items que ocorren de manera conjunta, no m’interesa la quantitat.
+
+He consultat informació sobre l’us de la llibreria arules a: *Reglas de asociación y algoritmo Apriori con R.* [en línia][data de consulta: 30 de desembre de 2020]. Disponible a: https://rpubs.com/Joaquin_AR/397172
+
+```{r message= FALSE, warning=FALSE}
+# Creo llista de transaccions
+dades_split <- split(x=treeData$nom_especie, f=treeData$Estadillo)
+#Creo l'objecte transactions
+transaccions <- as(dades_split, Class = "transactions")
+```
+
+Ara, ja tinc les dades en un format que l’algoritme apriori pot processar. Creo les regles d’associació establint una confiança del 50% i un suport del 1%:
+```{r message= FALSE, warning=FALSE}
+# Creo regles d'associació
+tree_rules <- apriori(transaccions, parameter = list(support = 0.01, confidence = 0.5))
+```
+
+```{r message= FALSE, warning=FALSE}
+# Observo un resum de les mesures de qualitat 
+summary(tree_rules)
+```
+Amb els paràmetres especificats, l’algoritme ha identificat 4 regles. Totes elles consten de 2 elements.
+```{r message= FALSE, warning=FALSE}
+# Ordeno per lift
+inspect(head(sort(tree_rules, by="lift"), 4))
+```
+Observo com amb un lift de 9,15, una confiança del 60% i un suport del 1'79%, en les parcel·les on es troba faig(Fagus sylvatica) també es troba avet(Abies alba).
+
+També observo com amb un lift de 2,35, una confiança del 72,5 i un suport del 1,1 en les parcel·les on es troba ginebró (Juniperus oxycedrus) també es troba pinassa(Pinus nigra)
+
+Ara vull trobar regles que incloguin com a mínim 3 arbres , per aixo haure de baixar el support (o la confiança), torno a aplicar l’algoritme per trobar regles, aquest cop indicant que, per a ser inclosa als resultats, cada regla ha de tenir com a mínim 3 espècies arbòries.
+```{r message= FALSE, warning=FALSE}
+tree_rules <- apriori(transaccions, parameter = list(support = 0.005, minlen=3, confidence = 0.5))
+```
+Amb els nous paràmetres, l'algoritme ha trobat 3 regles
+```{r message= FALSE, warning=FALSE}
+# Ordeno per confiança
+inspect(head(sort(tree_rules, by="confidence"), 10))
+```
+Observo com amb un lift de 2,13, suport de 0,7% i confiança del 65,7%, a les parcel·les on es troba pi roig(Pinus sylvestris) i roure de fulla petita(Quercus faginea) també s'hi troba pinassa(Pinus nigra).
+
+Observo com amb un lift de 1,85, suport de 0,5% i confiança del 57,1%, a les parcel·les on es troba ginebro(Juniperus oxycedrus) i alzina(Quercus ilex) també s'hi troba pinassa(Pinus nigra).
+
+Observo com amb un lift de 1,39, suport de 0,6% i confiança del 56,7%, a les parcel·les on es troba bedoll(Betula pendula) i pi negre(Pinus uncinata) també s'hi troba pi roig(Pinus sylvestrus).
+
+# Model no supervisat basat en distàncies (CLARA)
+Per tal de transformar el problema en un de no supervisat, no utilitzo la columna espècie, que es la variable que vull predir. Selecciono les variables que son càracterístiques dels individus.
+```{r message= FALSE, warning=FALSE}
+# Selecciono valors d'interes
+x <- subset(treeData, select = c(Dn, Ht, Calidad, Forma))
+```
+
+He consultat diferents mètodes de clustering basats en distàncies a: *Clustering y heatmaps*: Aprendizaje no supervisado[en línia][data de consulta: 2 de gener de 2021]. Disponible a https://www.cienciadedatos.net/documentos/37_clustering_y_heatmaps#Hierarchical_clustering 
+He consultat el funcionament de l'algoritme clara a:R Documentation: *clara*[en línia][data de consulta: 2 de gener de 2021] Disponible a: https://www.rdocumentation.org/packages/cluster/versions/2.1.0/topics/clara
+
+Aplico l'algoritme clara, que combina idea de K-medoides amb un resampling per tal que es pugui aplicar a grans volums de dades.
+```{r message= FALSE, warning=FALSE}
+# Defineixo llavor
+set.seed(22)
+# Vector que contindrà resultats
+resultats <- rep(0, 10)
+# Crido clara per diferents nombres de clusters i enmagatzemo la silueta mitjana
+for (i in c(2,3,4,5,6,7,8,9,10))
+{
+  tree_clusters <- clara(x, i, stand=TRUE, samples = 50, pamLike = TRUE)
+  resultats[i] <- tree_clusters$silinfo$avg.width
+}
+#Representació gràfica
+plot(2:10,resultats[2:10],type="o",col="blue",pch=0,xlab="Número de clusters",ylab="Silueta mitjana")
+```
+
+Utilitzant el criteri de la silueta mitjana, el nombre més adequat de clusters són 8, ja que la mitjana del valor de les siluetes es més propera a 1.
+```{r message= FALSE, warning=FALSE}
+# Agrupo mitjançant clara amb 8 clusters
+tree_clusters_eucl <- clara(x, 8, stand=TRUE, samples = 50, pamLike = TRUE)
+# Afegeixo la columna del cluster a una copia del dataframe
+x_results <- x
+x_results[["cluster_cle"]] <- tree_clusters_eucl$clustering
+# Emmagatzemo la silueta mitjana
+s_cle <- tree_clusters_eucl$silinfo$avg.width
+tree_clusters_eucl
+```
+S'han creat 8 grups, de diferents tamanys i característiques diferenciades:
+
+* 1: Arbres de poca alçada i molt poc diàmetres, sans i dominats pel que fa a qualitat i amb el tronc tort o molt ramificat.
+* 2: Arbres de poca alçada i diàmetre mig, sans, no dominats i amb el tronc tort o molt ramificat.
+* 3: Arbres morts.
+* 4: Arbres de poca alçada i diàmetre gran, sans, no dominats i amb el tronc fusiforme.
+* 5: Arbres de gran alçada i diàmetre, sans i no dominats i amb el tronc fusiforme.
+* 6: Arbres d'alçada i diàmetre mitjans, sans i no dominats i amb el tronc fusiforme.
+* 7: Arbres de poca alçada i diàmetre mig, dominats i amb el tronc fusiforme.
+* 8: Arbres de poca alçada i diàmetre, sans, no dominats i amb el tronc fusiforme.
+```{r message= FALSE, warning=FALSE}
+# Visualitxo la distribució dels clusters segons PCA
+fviz_cluster(object = tree_clusters_eucl, ellipse.type = "t", geom = "point", pointsize = 0.01) +
+  theme_bw() + labs(title = "Resultats clustering CLARA euclidean") + theme(legend.position = "none")
+```
+
+Degut a la gran quantitat de registres dels que disposa el dataset, es una mica dificil d'interpretar, pero sembla que tenim molts outliners i també superposició de clusters.
+
+Vegem que que passa si afegeixo la columna categòrica (espècie) i comprobo  resultats.
+
+```{r message= FALSE, warning=FALSE}
+# Afegeixo la columna amb els noms d'espècies
+x_results[["especie"]] <- treeData$nom_especie
+# Reordeno columnes
+x_results <- x_results[, c(1, 2, 3, 4, 6, 5)]
+# Dataframe amb els clusters i les especies
+cluster_especie <- x_results %>% group_by(cluster_cle, especie) %>% summarise(number = n())
+print.data.frame(cluster_especie)
+```
+A priori no sembla que hi hagi diferències significatives pel que fa la distribució d'espècies entre clusters, mirarè de desfer-me dels possibles outliers.
+```{r message= FALSE, warning=FALSE}
+# Selecciono aquelles espècies que tinguin com a mínim 5 exemplars dins dels clusters
+cluster_especie <-cluster_especie[cluster_especie[, "number"] >= 5,]
+print.data.frame(cluster_especie)
+```
+Encara es dificil d'extreure conclusions, utilitzaré les frequències per espècie d'arbres present en el cluster respecte al nombre total.
+```{r message= FALSE, warning=FALSE}
+# Dataframe amb el total d'individus per espècie
+n_especies <- x_results %>% group_by(especie) %>% summarise(totals = n())
+# Afegeixo els totals al quadre cluster/especie
+cluster_especie <- merge(cluster_especie, n_especies, by.x = "especie", by.y = "especie")
+# Calculo la freqüència relativa al total
+cluster_especie[["frequencia"]] <- (cluster_especie$number / cluster_especie$totals)
+# Selecciono els de frequencia >= 0.02
+cluster_especie <- cluster_especie[cluster_especie[, "frequencia"] >= 0.2,]
+# Ordeno per cluster
+cluster_especie[order(cluster_especie$cluster_cle),]
+```
+Ara si que s'observen diferencies significatives pel que fa la distribució d'espècies en els clusters:
+
+* Cluster 1: Destaca la completa absència de coníferes i la important presència d'alzina(Quercus ilex) i de pseudoarbustos com l'arboç(Arbutus unedo), l'avellanes (Corylus avellana), els ginebrons(Juniperus sp.) i diverses espècies del gènere Salix
+* Cluster 2: Destaca la completa absència de coníferes(amb l'excepció del pi pinyoner (Pinus pinea)) i la important presència d'alzina(Quercus ilex), de roure martinent (Quercus humilis), roure de fulla petita(Quercus faginea), bedolls(Betula sp), aurons(Acer sp) moixeres(Sorbus sp) i algun pseudoarbust.
+* Cluster 3: Conté unicament uns quants planifolis, l'olivera (Olea Europaea), el cirerer(Prunus avium), salze (Salix sp), oms (Ulmus minor) i moixeres.
+* Cluster 4: Conté principalment pins com el roig(Pinus sylvestris), la pinassa (pinus nigra), el blanc(Pinus halepensis i el maritim(Pinus pinaster).
+* Cluster 5: Conté majoritàriament avets (Abies alba) així com el faig(Fagus Sylvatica) i algunes espècies de pollancres (Populus sp)
+* Cluster 6: Conté principalment pins pirinencs com el negre (Pinus uncinata), el roig(Pinus sylvestris), la pinassa(Pinus nigra), aixi com avets(Abies alba), faig(Fagus sylvatica), bedoll(betula pendula), freixes(Fraxinus sp.) tremol(Populus tremula) i d'altres planifolis.
+* Cluster 7: Conté només planifolis coneguts com a fustes nobles, el noguer(Juglans regia), el cirerer(Prunus avium) i el lledoner(Celtis australis).
+* Cluster 8: Conté únicament pseudoarbustos com les moixeres (Sorbus sp.), el boix(Buxus sempervirens), el grèvol(Ilex aquifollium), el ginebro(Juniperus oxycedrus), la sabina(Juniperus phoenicea) i la blada (Acer opalus).
+
+
+# Model no supervisat canviant la mètrica
+L'algoritme CLARA utilitza per defecte la distància euclideana, vegem que pasa si, en el seu lloc, fem servir la distància de manhattan com a mètrica.
+```{r message= FALSE, warning=FALSE}
+# Defineixo llavor
+set.seed(22)
+# Vector que contindrà resultats
+resultats <- rep(0, 10)
+# Crido clara per diferents nombres de clusters i enmagatzemo la silueta mitjana
+for (i in c(2,3,4,5,6,7,8,9,10))
+{
+  tree_clusters <- clara(x, i, metric="manhattan", stand=TRUE, samples = 50, pamLike = TRUE)
+  resultats[i] <- tree_clusters$silinfo$avg.width
+}
+#Representació gràfica
+plot(2:10,resultats[2:10],type="o",col="blue",pch=0,xlab="Número de clusters",ylab="Silueta mitjana")
+```
+
+Utilitzant la distància de manhattan i el criteri de la silueta mitjana, el nombre més adequat de clusters són també 8, ja que la mitjana del valor de les siluetes es més propera a 1.
+```{r message= FALSE, warning=FALSE}
+# Agrupo mitjançant clara amb 8 clusters
+tree_clusters_manh <- clara(x, 8, metric= "manhattan", stand=TRUE, samples = 50, pamLike = TRUE)
+# Afegeixo la columna del cluster
+x_results[["cluster_clm"]] <- tree_clusters_manh$clustering
+# Emmagatzemo la silueta mitjana
+s_clm <- tree_clusters_manh$silinfo$avg.width
+tree_clusters_manh
+```
+S'han creat 8 grups, de diferents tamanys i característiques diferenciades, una mica diferents als obtinguts per la distància euclideana, principalment sembla que hi ha un grup amb dimensions mes grans i es simplifuiquen els grups de petites dimensions:
+
+* 1: Arbres de poca alçada i diametre mig, sans i dominats pel que fa a qualitat i amb el tronc tort o molt ramificat.
+* 2: Arbres de poca alçada i diàmetre mig, sans, no dominats i amb el tronc tort o molt ramificat.
+* 3: Arbres morts.
+* 4: Arbres de alçada i diàmetre mitjans, sans, no dominats i amb el tronc fusiforme.
+* 5: Arbres de gran alçada i diàmetre, sans i no dominats i amb el tronc fusiforme.
+* 6: Arbres d'alçada mitjana i diàmetre gran, sans i no dominats i amb el tronc fusiforme.
+* 7: Arbres de gran alçada i diàmetre molt gran,  no dominats i amb el tronc fusiforme.
+* 8: Arbres de poca alçada i diàmetre, sans, no dominats i amb el tronc fusiforme.
+```{r message= FALSE, warning=FALSE}
+# Visualitzo la distribució dels clusters segons PCA
+fviz_cluster(object = tree_clusters_manh, ellipse.type = "t", geom = "point", pointsize = 0.1) +
+  theme_bw() + labs(title = "Resultats clustering CLARA manhattan") + theme(legend.position = "none")
+```
+
+Obtenim un gràfic similar al obtingut anteriorment, una mica dificil d'interpretar, pero sembla que tenim molts outliners i també superposició de clusters.
+
+Vegem que que passa si comprobo resultats, afegint la columna de classe.
+
+```{r message= FALSE, warning=FALSE}
+# Dataframe amb els clusters i les especies
+cluster_especie_manh <- x_results %>% group_by(cluster_clm, especie) %>% summarise(number = n())
+# Selecciono aquelles espècies que tinguin com a mínim 5 exemplars dins dels clusters
+cluster_especie_manh <-cluster_especie_manh[cluster_especie_manh[, "number"] >= 5,]
+# Afegeixo els totals al quadre cluster/especie
+cluster_especie_manh <- merge(cluster_especie_manh, n_especies, by.x = "especie", by.y = "especie")
+# Calculo la freqüència relativa al total
+cluster_especie_manh[["frequencia"]] <- (cluster_especie_manh$number / cluster_especie_manh$totals)
+# Selecciono els de frequencia >= 0.02
+cluster_especie_manh <- cluster_especie_manh[cluster_especie_manh[, "frequencia"] >= 0.2,]
+# Ordeno per cluster
+cluster_especie_manh[order(cluster_especie_manh$cluster_clm),]
+```
+Ara si que s'observen clarament diferencies significatives pel que fa la distribució d'espècies en els clusters:
+
+* Cluster 1: Destaca la completa absència de coníferes i la important presència d'alzina(Quercus ilex) i de pseudoarbustos com l'arboç(Arbutus unedo), l'avellanes (Corylus avellana), els ginebrons(Juniperus sp.) i diverses espècies del gènere Salix. Molt similiar a l'obtingut per distància euclideana.
+* Cluster 2: Destaca la completa absència de coníferes(amb l'excepció del pi pinyoner (Pinus pinea)) i la important presència d'alzina(Quercus ilex), de roure martinent (Quercus humilis), roure de fulla petita(Quercus faginea), bedolls(Betula sp), aurons(Acer sp) moixeres(Sorbus sp) i algun pseudoarbust.
+Molt similiar a l'obtingut per distància euclideana.
+* Cluster 3: Conté unicament uns quants planifolis, l'olivera (Olea Europaea), el cirerer(Prunus avium), salze (Salix sp), oms (Ulmus minor) i moixeres.
+Molt similiar a l'obtingut per distància euclideana.
+* Cluster 4: Conté principalment pins com el roig(Pinus sylvestris), la pinassa (pinus nigra), el blanc(Pinus halepensis i el maritim(Pinus pinaster) i també el roure martinenc. A diferencia de l'obtingut per distància euclideana incorpora molts roures
+* Cluster 5: Conté majoritàriament avets (Abies alba) així com el faig(Fagus Sylvatica) i pins pirinencs com el negre (Pinus uncinata), el roig(Pinus sylvestris), la pinassa(Pinus nigra). A diferència del obtingut per distància euclideana no te tans pollancres (Populus sp) i té molts pins pirinencs.
+* Cluster 6:  Conté només 2 planifolis, el noguer(Juglans regia)i el lledoner(Celtis australis). Completament diferents a l'obtingut per distància euclideana.
+* Cluster 7: Conté majoritàriament avets (Abies alba) així com el faig(Fagus Sylvatica) i pollancres (Populus sp). Completament diferents a l'obtingut per distància euclideana.
+* Cluster 8: Conté principalment pseudoarbustos com les moixeres (Sorbus sp.), el boix(Buxus sempervirens), el grèvol(Ilex aquifollium), el ginebro(Juniperus oxycedrus), la sabina(Juniperus phoenicea) i la blada (Acer opalus) i també el ruore martinenc(Quercus humilis) i de fulla estreta (Quercus petraea). A diferència de l'obtingut per distància euclideana incorpora el roure martinenc i el de fulla estreta
+
+## Comparativa de resultats
+```{r message= FALSE, warning=FALSE}
+# Creo el quadre de amb els resultats obtinguts
+comp_res <- data.frame(mean_silhouette=c(s_cle, s_clm))
+# Anomeno els index
+rownames(comp_res) <- c("Euclidean","Manhattan")
+# Afegeixo els tamanys de cada cluster
+for (i in c(1,2,3,4,5,6,7,8)){
+comp_res[paste("cluster", i, "_size")]=colSums(x_results[,c(6:7)]==as.numeric(i))
+}
+print(comp_res)
+```
+Tant l'euclideana com la de manhattan donen 8 com a nombre òptim de clusters, amb una mitjana de les siluetes molt similar. No obstant si entrem a mirar tamanys i les característiques mitjanes de cada cluster si que trobem diferències, que s'accentuen més quan fem la comprovació de quines espècies ha assignat a cada cluster. 
+```{r message= FALSE, warning=FALSE}
+# Creo columna com la diferencia de clusters
+x_results$diff <- x_results$cluster_cle - x_results$cluster_clm
+# Sumo registres que canvien el nª de cluster
+colSums(x_results[8]!=0)
+```
+S'observa que només gairebé la meitat (32463 dels 66894 registres) canvien de cluster segons si s'utilitza la distància euclediana com a mètrica o si al contrari utilitzem la distància de manhattan.
+
+En termes generals la mitjana del valor de les siluetes no es massa elevada, els clusters es sobreposen bastant i hi han valors molt allunyats dels centres dels clusters. En dataset escollit no sembla molt idoni per aplicar clustering, la classificació supervisada pot ser encara més dificil, ja que pel que sembla hi han característiques comunes per grups d'especies, podria ser més o menys facil predir a quin grup ha d'estar un registres, pero l'èspecie exacta sembla bastant complicat.
+
+# Model supervisat
+L'objectiu es trobar un model que a partir de les característiques fisiologiques d'un arbre, pugui predir la seva espècie.
+
+Observo la distribució de la variable de classe
+```{r message= FALSE, warning=FALSE}
+percentatge <- prop.table(table(treeData$nom_especie)) * 100
+cbind(freq=table(treeData$nom_especie), percentatge=percentatge)
+```
+S'observa que hi ha algunes espècies amb molt pocs arbres en el dataset, que corresponen a fruiters naturalitzats, arbustos que han assolit excepcionalment la forma d'arbre, arbres ornamentals que deuen haver estat plantats i excepcions fora de la seva àrea natural de distribució. Estableixo un nombre mínim de 30 exemplars per espècie per tal de tenir-la encompte aixi hem desfaig d'aquests casos, i tinc suficients dades per especie de cara a entrenar els models.
+```{r message= FALSE, warning=FALSE}
+# Dataframe amb el recompte d'exemplars per especie
+especie_count <- treeData %>% group_by(nom_especie) %>% summarise(number = n())
+# Selecciono aquelles espècies que tinguin com a mínim 30 exemplars
+especie_count <- especie_count [especie_count[, "number"] >= 30,]
+# Selecciono del dataset
+treeData<- merge(treeData, especie_count, by.x = "nom_especie", by.y = "nom_especie")
+```
+Selecciono només les columnes d'interes
+```{r message= FALSE, warning=FALSE}
+# Selecciono les columnes característiques i la variable a predir
+dades_arbre <- subset(treeData, select = c(Dn, Ht, Calidad, Forma, nom_especie))
+```
+Parteixo el dataset en una part de train que contingui el 80% dels registres i el test la resta
+```{r message= FALSE, warning=FALSE}
+# create a list of 80% of the rows in the original dataset we can use for training
+test_index <- createDataPartition(dades_arbre$nom_especie, p=0.80, list=FALSE)
+# select 20% of the data for validation
+test <- dades_arbre[-test_index,]
+# use the remaining 80% of data to training and testing the models
+train <- dades_arbre[test_index,]
+```
+Comprovo que no hi ha esbiaix en les particions dels conjunts de train i test i que conserven aproximadament les proporcions dels valors del dataset original, per cada variable:
+```{r message= FALSE, warning=FALSE}
+# Genero el gràfic
+df_boxplot <- rbind(dades_arbre, train, test)
+df_boxplot <- cbind(df_boxplot, dataset = c(rep("total", nrow(dades_arbre)), 
+                                           rep("train", nrow(train)),
+                                           rep("test",nrow(test))))
+for (i in 1:4){
+    boxplot(df_boxplot[[i]] ~ df_boxplot$dataset, main=colnames(df_boxplot)[i])
+}
+```
+
+No s'observen diferències significatives entre els conjunts train i set.
+```{r message= FALSE, warning=FALSE}
+# Estableixo una validació per cross-validation amb 10 particions i la precisió com a mètrica
+control <- trainControl(method="cv", number=10)
+metrica <- "Accuracy"
+```
+Ara ja puc entrenar els models, n'entrenare 3 de diferents abans d'escullir el més precís.
+```{r message= FALSE, warning=FALSE}
+# a) Algoritmes linears (lda)
+set.seed(7)
+fit.lda <- train(nom_especie~., data=dades_arbre, method="lda", metric=metrica, trControl=control)
+# b) Algoritmes no-linears
+# CART
+set.seed(7)
+fit.cart <- train(nom_especie~., data=dades_arbre, method="rpart", metric=metrica, trControl=control)
+# kNN
+set.seed(7)
+fit.knn <- train(nom_especie~., data=dades_arbre, method="knn", metric=metrica, trControl=control)
+```
+Ara ja tinc 3 models entrenats amb les respectives precisions, comparo els resultats
+
+```{r message= FALSE, warning=FALSE}
+# Comparo la precisió dels models
+resultats <- resamples(list(lda=fit.lda, cart=fit.cart, knn=fit.knn))
+summary(resultats)
+```
+Tots tenen precisions bastant similars, no obstant sembla que el model mes precís es el d'analisi linear discriminant.
+```{r message= FALSE, warning=FALSE}
+# Visualitzo el model LDA
+print(fit.lda)
+```
+Presiu 39 classes, amb una precisió del 37,41% i un kappa del 0,16
+Avaluo les prediccions sobre el test
+```{r message= FALSE, warning=FALSE}
+# Genero les prediccions amb el model
+test$nom_especie <- as.factor(test$nom_especie)
+predictions <- predict(fit.lda, test)
+#Calculo la matriu de confusió
+confusionMatrix(predictions, test$nom_especie)
+```
+El model té una precisió del 37'54 %, es un valor molt baix pero també cal tenir en compte es disposa de moltes categories, vegem quina seria el resultat d'una assignació aleatòria.
+```{r message= FALSE, warning=FALSE}
+# Calcula amb l'assignació aleatoria
+1/length(unique(treeData$nom_especie))
+```
+El model millora molt l'assignació aleatòria, no obstant, podem concloure que necessitem més informació que únicament les característiques físiques per tal de predir amb encert l'espècie exacta, donat que moltes d'elles tenen característiques semblants. Necesitariem per exemple dades referents a l'ubicació, característiques de fulles i flors per tal de predir amb encert.
+
+Vegem que passa si intentem predir gèneres (per exemples els Pinus, Quercus, etc. agrupats) en comptes d'espècies
+```{r message= FALSE, warning=FALSE}
+#Creo la columna gènere, el primer mot del nom de l'espècie
+dades_arbre$genere <- gsub("([A-Za-z]+).*", "\\1", dades_arbre$nom_especie)
+#Elimino la columna nom_especie
+dades_arbre <- subset(dades_arbre, select=-nom_especie)
+```
+Creo els conjunts d'entrenament i de validació
+```{r message= FALSE, warning=FALSE}
+# Selecciono el 20% de les dades per fer la validació
+test <- dades_arbre[-test_index,]
+# Utilitzo el 80% restant per a l'entrenament del modeluse the remaining 80% of data to training and testing the models
+train <- dades_arbre[test_index,]
+```
+Ara ja puc realitzar l'analisi discriminant lineal
+```{r message= FALSE, warning=FALSE}
+# a) Entreno lda
+set.seed(7)
+fit.lda <- train(genere~., data=dades_arbre, method="lda", metric=metrica, trControl=control)
+# Visualitzo el resultat
+print(fit.lda)
+```
+Prediu 18 classes amb una precisió del 79% i un kappa del 0,42. Avaluo el model.
+```{r message= FALSE, warning=FALSE}
+# Defineixo la columna genero com a factor
+test$genere <- as.factor(test$genere)
+# Genero les prediccions amb el model
+predictions <- predict(fit.lda, test)
+# Calculo la matriu de confusió
+confusionMatrix(predictions, test$genere)
+```
+El model té una precisió del 79,7 %, podem concloure que a partir de les característiques físiques dels arbres, es pot predir amb un gairebé un 80% d'encert, el genere al que pertany.
+
+# Model supervisat aplicant PCA
+## Analisi de components principals (PCA)
+Selecciono les variables que són característiques dels individus.
+```{r message= FALSE, warning=FALSE}
+# Selecciono valors d'interes
+x <- subset(treeData, select = c(Dn, Ht, Calidad, Forma))
+# Obting el pca, estandaritzant les variables
+pca <- prcomp(x, scale = TRUE)
+```
+A l'hora d'escollir el numero de components que utilitzaré en analisis posteriors hem fixo amb la variança explicada.
+La llista sdev conté la desviació de cadascun dels components, puc calcular la proporció de variança.
+```{r message= FALSE, warning=FALSE}
+prop_var <- pca$sdev^2 / sum(pca$sdev^2)
+prop_var
+```
+```{r message= FALSE, warning=FALSE}
+# Visualitzo les proporcions
+ggplot(data = data.frame(prop_var, pc = factor(1:4)), aes(x = pc, y = prop_var)) +
+geom_col(width = 0.3, fill= "steelblue") + scale_y_continuous(limits = c(0,1)) +
+geom_text(aes(label = paste0(round((prop_var * 100), 1), "%")), size = 3, vjust = -0.5, hjust = 0.5) + theme_bw() + labs(title= "Percentatge de variança explicada per component", x = "Component principal", y = "Prop. de variança explicada")
+```
+
+Veiem com el primer component explica el 58,4 % de la variança observada en les dades, el segon el 27,7 % i el tercera el 8,4% i el quart el 5,5%.
+```{r message= FALSE, warning=FALSE}
+# Calculo la variança explicada acumulada
+cum_prop_var <- cumsum(prop_var)
+cum_prop_var
+```
+```{r message= FALSE, warning=FALSE}
+# Visualitzo
+ggplot(data = data.frame(cum_prop_var, pc = factor(1:4)), aes(x = pc, y = cum_prop_var, group =1)) + geom_area(fill="steelblue") + geom_point() + geom_line(size=1) + theme_bw() + geom_text(aes(label = paste0(round((cum_prop_var * 100), 1), "%")), size = 3, vjust = -0.5, hjust = 0.5) + labs(title= "Percentatge de variança acumulada PCA", x = "Component principal", y = "Prop. de variança explicada acumulada") 
+```
+
+Escolliré treballar amb només els primers components, ja que expliquen el 86,1% de la variança i a partir d'aqui l'increment deixa de ser substancial.
+
+## Model supervisat amb PCA
+
+```{r message= FALSE, warning=FALSE}
+# Selecciono els 2 primers components
+dades_pca <- pca$x[,1:2]
+dades_pca <- as.data.frame(dades_pca)
+# Afegeixo la columna de classe
+dades_pca$genere <- dades_arbre$genere
+```
+Creo els conjunts d'entrenament i de validació
+```{r message= FALSE, warning=FALSE}
+# Selecciono el 20% de les dades per fer la validació
+test <- dades_pca[-test_index,]
+# Utilitzo el 80% restant per a l'entrenament del modeluse the remaining 80% of data to training and testing the models
+train <- dades_pca[test_index,]
+```
+Realitzo l'analisi discriminant lineal
+```{r message= FALSE, warning=FALSE}
+# a) Entreno lda
+set.seed(7)
+fit.lda <- train(genere~., data=dades_pca, method="lda", metric=metrica, trControl=control)
+# Visualitzo el resultat
+print(fit.lda)
+```
+El model té una precisio del 72% i un kappa del 0.00
+Avaluo les prediccions sobre el test
+```{r message= FALSE, warning=FALSE}
+# defineixo la columna genere com a factor
+test$genere <- as.factor(test$genere)
+# Genero les prediccions amb el model
+predictions <- predict(fit.lda, test)
+# Genero la matriu de confusio
+confusionMatrix(predictions, test$genere)
+```
+Utilitzant només els 2 primers components PCA el model té una precisió del 74,35% i un kappa del 0,064.
+
+## Conclusions
+Sense PCA el model tenia una precisió del 79,5%, despres d'aplicar PCA i seleccionar els 2 primers components tenim una precisió del 74,35%. Aixó és deu a que hem seleccionat només 2 components que representen un 86% de la variança, per tant queda un percentatge important de variaça no recullida a l'hora d'entrenar el model. Aixó fa que el model perdi una mica de precisió amb les prediccions, tot i que és molt més ràpid d'entrenar i predir, ja que treballem només amb 2 variables en lloc de les 4 inicials.
+
